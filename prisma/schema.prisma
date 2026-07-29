@@ -1,0 +1,746 @@
+generator client {
+  provider      = "prisma-client-js"
+  // "native" pour ton ordinateur, "rhel-openssl-3.0.x" pour les fonctions serverless de Vercel.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────
+// AUTHENTIFICATION (M1)
+// ─────────────────────────────
+
+model VerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    // "email_verification", "password_reset"
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+// ─────────────────────────────
+// IDENTITÉ & ACCÈS
+// ─────────────────────────────
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  name             String
+  locale           String    @default("fr")
+  emailVerifiedAt  DateTime?
+  twoFactorEnabled Boolean   @default(false)
+  twoFactorSecret  String?
+  status           String    @default("active")
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  memberships   Membership[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@index([status])
+}
+
+model Organization {
+  id              String    @id @default(cuid())
+  name            String
+  country         String
+  sector          String?
+  size            String?
+  logoUrl         String?
+  primaryLanguage String    @default("fr")
+  timezone        String    @default("Africa/Douala")
+  aiEnabled       Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  memberships         Membership[]
+  roles               Role[]
+  departments         Department[]
+  subscription        Subscription?
+  aiProviders         AiProvider[]
+  aiTools             AiTool[]
+  useCases            UseCase[]
+  riskQuestions       RiskQuestion[]
+  riskAssessments     RiskAssessment[]
+  policies            Policy[]
+  documents           Document[]
+  trainingCourses     TrainingCourse[]
+  trainingAssignments TrainingAssignment[]
+  incidents           Incident[]
+  correctiveActions   CorrectiveAction[]
+  vendors             Vendor[]
+  reports             Report[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  aiGenerations       AiGeneration[]
+
+  @@index([country])
+}
+
+model Membership {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String
+  roleId         String
+  status         String    @default("invited")
+  invitedAt      DateTime  @default(now())
+  joinedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  role         Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, roleId])
+}
+
+model Role {
+  id             String   @id @default(cuid())
+  organizationId String?
+  name           String
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  memberships     Membership[]
+  rolePermissions RolePermission[]
+
+  @@index([organizationId])
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  code        String @unique
+  description String
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model Department {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  name               String
+  parentDepartmentId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  parent       Department?  @relation("DeptHierarchy", fields: [parentDepartmentId], references: [id])
+  children     Department[] @relation("DeptHierarchy")
+  useCases     UseCase[]
+
+  @@index([organizationId])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  organizationId       String    @unique
+  plan                 String
+  status               String
+  seatsLimit           Int
+  toolsLimit           Int?
+  useCaseLimit         Int?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  gracePeriodEndsAt    DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+// ─────────────────────────────
+// INVENTAIRE IA
+// ─────────────────────────────
+
+model AiProvider {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  website        String?
+  country        String?
+  description    String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  aiTools      AiTool[]
+
+  @@index([organizationId])
+}
+
+model AiTool {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  name                 String
+  aiProviderId         String?
+  category             String?
+  description          String?   @db.Text
+  model                String?
+  version              String?
+  ownerUserId          String?
+  startDate            DateTime?
+  status               String    @default("active")
+  estimatedCost        Decimal?  @db.Decimal(10, 2)
+  dataTypesProcessed   String?   @db.Text
+  personalDataInvolved Boolean   @default(false)
+  termsUrl             String?
+  privacyPolicyUrl     String?
+  dataLocation         String?
+  criticality          String    @default("low")
+  nextReviewDate       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  aiProvider   AiProvider?  @relation(fields: [aiProviderId], references: [id])
+  useCases     UseCase[]
+  incidents    Incident[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, criticality])
+}
+
+// ─────────────────────────────
+// CAS D'USAGE & RISQUES
+// ─────────────────────────────
+
+model UseCase {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  title              String
+  description        String?   @db.Text
+  departmentId       String?
+  ownerUserId        String?
+  businessGoal       String?   @db.Text
+  aiToolId           String?
+  affectedUsers      String?
+  affectedPopulation String?
+  inputData          String?   @db.Text
+  outputData         String?   @db.Text
+  automationLevel    String?
+  humanIntervention  String?
+  potentialImpact    String?   @db.Text
+  frequency          String?
+  approvalStatus     String    @default("draft")
+  reviewDate         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  department      Department?      @relation(fields: [departmentId], references: [id])
+  aiTool          AiTool?          @relation(fields: [aiToolId], references: [id])
+  riskAssessments RiskAssessment[]
+  incidents       Incident[]
+
+  @@index([organizationId, approvalStatus])
+}
+
+model RiskQuestion {
+  id             String @id @default(cuid())
+  organizationId String?
+  category       String
+  text           String @db.Text
+  weight         Int    @default(1)
+  orderIndex     Int    @default(0)
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  answers      RiskAnswer[]
+
+  @@index([organizationId, category])
+}
+
+model RiskAssessment {
+  id                String    @id @default(cuid())
+  organizationId    String
+  useCaseId         String
+  status            String    @default("in_progress")
+  confirmedByUserId String?
+  justification     String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  useCase      UseCase      @relation(fields: [useCaseId], references: [id])
+  answers      RiskAnswer[]
+  score        RiskScore?
+
+  @@index([organizationId, useCaseId])
+}
+
+model RiskAnswer {
+  id               String  @id @default(cuid())
+  riskAssessmentId String
+  riskQuestionId   String
+  value            Int
+  comment          String? @db.Text
+
+  riskAssessment RiskAssessment @relation(fields: [riskAssessmentId], references: [id])
+  riskQuestion   RiskQuestion   @relation(fields: [riskQuestionId], references: [id])
+
+  @@unique([riskAssessmentId, riskQuestionId])
+}
+
+model RiskScore {
+  id                    String    @id @default(cuid())
+  riskAssessmentId      String    @unique
+  rawScore              Float
+  level                 String
+  computedAt            DateTime  @default(now())
+  overriddenByUserId    String?
+  overrideJustification String?   @db.Text
+
+  riskAssessment RiskAssessment @relation(fields: [riskAssessmentId], references: [id])
+}
+
+// ─────────────────────────────
+// GOUVERNANCE DOCUMENTAIRE
+// ─────────────────────────────
+
+model Policy {
+  id               String    @id @default(cuid())
+  organizationId   String
+  title            String
+  status           String    @default("draft")
+  currentVersionId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  versions     PolicyVersion[]
+
+  @@index([organizationId, status])
+}
+
+model PolicyVersion {
+  id               String    @id @default(cuid())
+  policyId         String
+  versionNumber    Int
+  language         String
+  contentJson      String    @db.Text
+  generatedByAi    Boolean   @default(false)
+  promptVersionId  String?
+  approvedByUserId String?
+  approvedAt       DateTime?
+  exportPdfUrl     String?
+  exportDocxUrl    String?
+  createdAt        DateTime  @default(now())
+
+  policy        Policy         @relation(fields: [policyId], references: [id])
+  promptVersion PromptVersion? @relation(fields: [promptVersionId], references: [id])
+
+  @@unique([policyId, versionNumber, language])
+}
+
+model Document {
+  id               String    @id @default(cuid())
+  organizationId   String
+  folderPath       String    @default("/")
+  name             String
+  tags             String?
+  currentVersionId String?
+  ownerUserId      String?
+  expirationDate   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  versions     DocumentVersion[]
+  
+
+  @@index([organizationId, expirationDate])
+}
+
+model DocumentVersion {
+  id               String   @id @default(cuid())
+  documentId       String
+  versionNumber    Int
+  storageKey       String
+  mimeType         String
+  size             Int
+  checksum         String
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+
+  document    Document     @relation(fields: [documentId], references: [id])
+  attachments Attachment[]
+
+  @@unique([documentId, versionNumber])
+}
+
+model Comment {
+  id             String    @id @default(cuid())
+  organizationId String
+  resourceType   String
+  resourceId     String
+  authorUserId   String
+  body           String    @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  @@index([organizationId, resourceType, resourceId])
+}
+
+model Attachment {
+  id                String   @id @default(cuid())
+  organizationId    String
+  resourceType      String
+  resourceId        String
+  documentVersionId String?
+  scanStatus        String   @default("not_scanned")
+  createdAt         DateTime @default(now())
+
+  document DocumentVersion? @relation(fields: [documentVersionId], references: [id])
+
+  @@index([organizationId, resourceType, resourceId])
+}
+
+// ─────────────────────────────
+// FORMATION
+// ─────────────────────────────
+
+model TrainingCourse {
+  id             String   @id @default(cuid())
+  organizationId String?
+  title          String
+  description    String?  @db.Text
+  language       String   @default("fr")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization?        @relation(fields: [organizationId], references: [id])
+  modules      TrainingModule[]
+  assignments  TrainingAssignment[]
+
+  @@index([organizationId])
+}
+
+model TrainingModule {
+  id               String @id @default(cuid())
+  trainingCourseId String
+  title            String
+  content          String @db.Text
+  orderIndex       Int    @default(0)
+
+  course TrainingCourse @relation(fields: [trainingCourseId], references: [id])
+  quiz   Quiz?
+}
+
+model TrainingAssignment {
+  id               String    @id @default(cuid())
+  organizationId   String
+  trainingCourseId String
+  userId           String
+  assignedByUserId String?
+  dueDate          DateTime?
+  status           String    @default("assigned")
+  completedAt      DateTime?
+  certificateUrl   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  course       TrainingCourse @relation(fields: [trainingCourseId], references: [id])
+  attempts     QuizAttempt[]
+
+  @@index([organizationId, status, dueDate])
+}
+
+model Quiz {
+  id               String @id @default(cuid())
+  trainingModuleId String @unique
+  title            String
+  passingScore     Int    @default(70)
+
+  module    TrainingModule @relation(fields: [trainingModuleId], references: [id])
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id            String @id @default(cuid())
+  quizId        String
+  text          String @db.Text
+  optionsJson   String @db.Text
+  correctAnswer String
+  orderIndex    Int    @default(0)
+
+  quiz Quiz @relation(fields: [quizId], references: [id])
+}
+
+model QuizAttempt {
+  id                   String   @id @default(cuid())
+  quizId               String
+  trainingAssignmentId String
+  userId               String
+  score                Int
+  passed               Boolean
+  attemptedAt          DateTime @default(now())
+
+  quiz       Quiz               @relation(fields: [quizId], references: [id])
+  assignment TrainingAssignment @relation(fields: [trainingAssignmentId], references: [id])
+
+  @@index([trainingAssignmentId])
+}
+
+// ─────────────────────────────
+// INCIDENTS & ACTIONS CORRECTIVES
+// ─────────────────────────────
+
+model Incident {
+  id               String    @id @default(cuid())
+  organizationId   String
+  title            String
+  description      String    @db.Text
+  date             DateTime
+  aiToolId         String?
+  useCaseId        String?
+  dataConcerned    String?   @db.Text
+  impact           String?   @db.Text
+  severity         String    @default("moderate")
+  immediateActions String?   @db.Text
+  ownerUserId      String?
+  status           String    @default("open")
+  closedAt         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  aiTool            AiTool?            @relation(fields: [aiToolId], references: [id])
+  useCase           UseCase?           @relation(fields: [useCaseId], references: [id])
+  correctiveActions CorrectiveAction[]
+
+  @@index([organizationId, status, severity])
+}
+
+model CorrectiveAction {
+  id              String    @id @default(cuid())
+  organizationId  String
+  incidentId      String?
+  title           String
+  description     String?   @db.Text
+  sourceProblem   String?   @db.Text
+  priority        String    @default("medium")
+  ownerUserId     String?
+  dueDate         DateTime?
+  status          String    @default("open")
+  comment         String?   @db.Text
+  proofDocumentId String?
+  validatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  incident     Incident?    @relation(fields: [incidentId], references: [id])
+
+  @@index([organizationId, status, dueDate])
+}
+
+model Approval {
+  id                String    @id @default(cuid())
+  organizationId    String
+  resourceType      String
+  resourceId        String
+  requestedByUserId String
+  approverUserId    String?
+  status            String    @default("pending")
+  comment           String?   @db.Text
+  decidedAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([organizationId, resourceType, resourceId])
+}
+
+// ─────────────────────────────
+// FOURNISSEURS
+// ─────────────────────────────
+
+model Vendor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  website        String?
+  country        String?
+  contactEmail   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  assessments  VendorAssessment[]
+
+  @@index([organizationId])
+}
+
+model VendorAssessment {
+  id               String    @id @default(cuid())
+  vendorId         String
+  organizationId   String
+  status           String    @default("pending")
+  riskLevel        String?
+  notes            String?   @db.Text
+  assessedByUserId String?
+  assessedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  @@index([organizationId, vendorId])
+}
+
+// ─────────────────────────────
+// SYSTÈME
+// ─────────────────────────────
+
+model Notification {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String
+  payloadJson    String    @db.Text
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, userId, readAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  oldState       String?  @db.Text
+  newState       String?  @db.Text
+  ipAddress      String?
+  result         String   @default("success")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, resourceType, resourceId])
+  @@index([organizationId, createdAt])
+}
+
+model Report {
+  id                String   @id @default(cuid())
+  organizationId    String
+  type              String
+  generatedByUserId String
+  parametersJson    String?  @db.Text
+  fileDocumentId    String?
+  createdAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, type])
+}
+
+model ApiUsage {
+  id             String   @id @default(cuid())
+  organizationId String?
+  endpoint       String
+  method         String
+  statusCode     Int
+  latencyMs      Int
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, endpoint, createdAt])
+}
+
+model AiGeneration {
+  id                      String    @id @default(cuid())
+  organizationId          String
+  providerCode            String
+  model                   String
+  promptVersionId         String?
+  inputTokens             Int?
+  outputTokens            Int?
+  costEstimate            Decimal?  @db.Decimal(10, 4)
+  latencyMs               Int?
+  status                  String    @default("success")
+  requiresHumanValidation Boolean   @default(true)
+  validatedByUserId       String?
+  validatedAt             DateTime?
+  createdAt               DateTime  @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  promptVersion PromptVersion? @relation(fields: [promptVersionId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+model PromptTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions PromptVersion[]
+}
+
+model PromptVersion {
+  id               String   @id @default(cuid())
+  promptTemplateId String
+  versionNumber    Int
+  content          String   @db.Text
+  language         String
+  createdAt        DateTime @default(now())
+
+  template       PromptTemplate  @relation(fields: [promptTemplateId], references: [id])
+  aiGenerations  AiGeneration[]
+  policyVersions PolicyVersion[]
+
+  @@unique([promptTemplateId, versionNumber])
+}
