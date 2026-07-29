@@ -15,7 +15,7 @@ interface AuditEntry {
 /** Extrait l'IP cliente depuis les en-têtes de confiance (proxy Hostinger/Cloudflare). */
 export function extractClientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
+  if (forwarded) return (forwarded.split(",")[0] ?? "unknown").trim();
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 

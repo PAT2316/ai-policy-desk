@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // (le mot de passe sera défini lors de l'acceptation de l'invitation, via le même flux que verify-email).
     if (!user) {
       user = await prisma.user.create({
-        data: { email, name: email.split("@")[0], passwordHash: "invited", status: "active" },
+        data: { email, name: email.split("@")[0] ?? email, passwordHash: "invited", status: "active" },
       });
     }
 
