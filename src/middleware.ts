@@ -20,7 +20,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET as string });
+  const cookieName =
+    process.env.NODE_ENV === "production" ? "__Secure-authjs.session-token" : "authjs.session-token";
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET as string,
+    salt: cookieName,
+  });
 
   if (!token) {
     const loginUrl = new URL("/login", req.url);
@@ -28,7 +34,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Sécurité en profondeur : en-têtes de sécurité de base sur toute réponse authentifiée.
   const response = NextResponse.next();
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
