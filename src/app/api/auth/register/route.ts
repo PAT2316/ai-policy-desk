@@ -50,19 +50,23 @@ export async function POST(req: NextRequest) {
   });
 
   const token = await createVerificationToken(user.id, "email_verification");
+  const verificationUrl = `${process.env.APP_URL}/verify-email?token=${token}`;
 
   await sendEmail({
     to: user.email,
     template: "email_verification",
     locale: user.locale,
-    variables: {
-      verificationUrl: `${process.env.APP_URL}/verify-email?token=${token}`,
-      name: user.name,
-    },
+    variables: { verificationUrl, name: user.name },
   });
 
   return NextResponse.json(
-    { message: "Si cet email n'est pas déjà utilisé, un email de vérification vient d'être envoyé." },
+    {
+      message: "Si cet email n'est pas déjà utilisé, un email de vérification vient d'être envoyé.",
+      // Commodité MVP uniquement tant qu'aucun vrai fournisseur d'email n'est configuré :
+      // sans ça, le lien de vérification ne serait visible que dans les logs serveur.
+      // À retirer dès que EMAIL_PROVIDER=brevo est actif en production.
+      ...(process.env.EMAIL_PROVIDER !== "brevo" ? { devVerificationUrl: verificationUrl } : {}),
+    },
     { status: 200 }
   );
 }
