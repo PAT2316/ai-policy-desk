@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         });
         roleMap.set(roleName, role.id);
 
-        const rolePermissionRows = permissionCodes
+        const rolePermissionRows = Array.from(new Set(permissionCodes))
           .map((code) => permissionIdByCode.get(code))
           .filter((id): id is string => Boolean(id))
           .map((permissionId) => ({ roleId: role.id, permissionId }));

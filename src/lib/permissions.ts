@@ -124,5 +124,5 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, PermissionCode[]> = {
   ],
   // L'Auditeur ne reçoit STRICTEMENT que des permissions en lecture (":view"),
   // jamais générées dynamiquement à partir d'un rôle plus large : c'est la garantie de non-régression.
-  [SYSTEM_ROLES.AUDITOR]: [...READ_ONLY_PERMISSIONS, PERMISSIONS.AUDIT_LOG_VIEW],
+  [SYSTEM_ROLES.AUDITOR]: READ_ONLY_PERMISSIONS,
 };
