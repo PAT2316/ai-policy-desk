@@ -1,11 +1,9 @@
-import * as argon2 from "argon2";
+import bcrypt from "bcryptjs";
 
-const HASH_OPTIONS: argon2.Options = {
-  type: argon2.argon2id,
-  memoryCost: 19456,
-  timeCost: 2,
-  parallelism: 1,
-};
+// bcryptjs plutôt qu'argon2 : argon2 nécessite un binaire natif compilé, ce qui échoue
+// dans l'environnement serverless de Vercel ("No native build was found"). bcryptjs est
+// une implémentation 100% JavaScript, sans dépendance de compilation.
+const SALT_ROUNDS = 12;
 
 const MIN_LENGTH = 10;
 
@@ -22,12 +20,12 @@ export function validatePasswordStrength(password: string): { valid: boolean; re
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  return argon2.hash(password, HASH_OPTIONS);
+  return bcrypt.hash(password, SALT_ROUNDS);
 }
 
 export async function verifyPassword(hash: string, password: string): Promise<boolean> {
   try {
-    return await argon2.verify(hash, password);
+    return await bcrypt.compare(password, hash);
   } catch {
     // Hash corrompu ou format inattendu : échec silencieux, jamais d'exception qui fuite d'info.
     return false;

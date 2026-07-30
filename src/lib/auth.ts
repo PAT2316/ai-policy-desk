@@ -34,7 +34,7 @@ export const authConfig: NextAuthConfig = {
 
         // Toujours exécuter verifyPassword même si l'utilisateur n'existe pas,
         // afin d'éviter une différence de timing révélant l'existence du compte.
-        const passwordHash = user?.passwordHash ?? "$argon2id$v=19$m=19456,t=2,p=1$invalidsaltinvalidsalt";
+        const passwordHash = user?.passwordHash ?? "$2b$12$Tw3kAqQJTPW5OUTQ0q3dHebC44I57L5ysqxOerzo8xLLWeigmazo2";
         const passwordValid = await verifyPassword(passwordHash, password);
 
         const success = Boolean(user && passwordValid && user.status === "active" && user.emailVerifiedAt);
