@@ -1,14 +1,15 @@
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { authConfigBase } from "./auth.config";
 import { prisma } from "./prisma";
 import { verifyPassword } from "./password";
 import { canAttemptLogin, recordLoginAttempt, isAccountLocked } from "./rateLimiter";
 
+// Configuration complète (Node.js) : reprend la base Edge-safe et y ajoute le
+// fournisseur Credentials, qui a besoin de Prisma et bcrypt. Utilisée uniquement
+// côté serveur Node.js classique — jamais dans le middleware (voir src/auth.edge.ts).
 export const authConfig: NextAuthConfig = {
-  session: { strategy: "jwt", maxAge: 8 * 60 * 60 }, // 8h, renouvelée à l'activité
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfigBase,
   providers: [
     Credentials({
       credentials: {
@@ -18,7 +19,6 @@ export const authConfig: NextAuthConfig = {
       async authorize(credentials, request) {
         const email = String(credentials?.email ?? "").toLowerCase().trim();
         const password = String(credentials?.password ?? "");
-        // En prod, dériver l'IP depuis les en-têtes de confiance (proxy Hostinger/Cloudflare).
         const ipAddress = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
         if (!email || !password) return null;
@@ -52,20 +52,4 @@ export const authConfig: NextAuthConfig = {
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.userId = user.id;
-        token.locale = (user as { locale?: string }).locale;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.userId as string;
-        (session.user as { locale?: string }).locale = token.locale as string | undefined;
-      }
-      return session;
-    },
-  },
 };
