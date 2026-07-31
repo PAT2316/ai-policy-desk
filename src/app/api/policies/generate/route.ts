@@ -73,9 +73,9 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = `${SYSTEM_INSTRUCTIONS}\n\nLangue de sortie: ${parsed.data.language}\n\n${userDataBlocks}`;
 
+    const provider = getActiveAIProvider();
     let result;
     try {
-      const provider = getActiveAIProvider();
       result = await provider.generate({ promptContent: fullPrompt });
     } catch (aiError) {
       if (aiError instanceof Error && aiError.message.includes("ANTHROPIC_API_KEY")) {
