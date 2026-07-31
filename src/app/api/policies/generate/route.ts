@@ -73,8 +73,19 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = `${SYSTEM_INSTRUCTIONS}\n\nLangue de sortie: ${parsed.data.language}\n\n${userDataBlocks}`;
 
-    const provider = getActiveAIProvider();
-    const result = await provider.generate({ promptContent: fullPrompt });
+    let result;
+    try {
+      const provider = getActiveAIProvider();
+      result = await provider.generate({ promptContent: fullPrompt });
+    } catch (aiError) {
+      if (aiError instanceof Error && aiError.message.includes("ANTHROPIC_API_KEY")) {
+        return NextResponse.json(
+          { error: "ai_provider_not_configured", message: "La clé API Anthropic n'est pas configurée sur ce déploiement." },
+          { status: 503 }
+        );
+      }
+      throw aiError;
+    }
 
     const policy = parsed.data.policyId
       ? await prisma.policy.findUniqueOrThrow({ where: { id: parsed.data.policyId } })
