@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/authorize";
 import { PERMISSIONS } from "@/lib/permissions";
 import { UseCaseStatusActions } from "./UseCaseStatusActions";
+import { StartRiskAssessmentButton } from "./StartRiskAssessmentButton";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Brouillon",
@@ -64,12 +65,13 @@ export default async function UseCasesPage() {
                   {STATUS_LABEL[uc.approvalStatus] ?? uc.approvalStatus}
                 </span>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 flex gap-2">
                 <UseCaseStatusActions
                   useCaseId={uc.id}
                   organizationId={ctx.organizationId}
                   currentStatus={uc.approvalStatus}
                 />
+                <StartRiskAssessmentButton useCaseId={uc.id} organizationId={ctx.organizationId} />
               </div>
             </div>
           ))}

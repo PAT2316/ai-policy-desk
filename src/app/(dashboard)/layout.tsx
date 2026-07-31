@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Tableau de bord" },
   { href: "/ai-tools", label: "Outils d'IA" },
   { href: "/use-cases", label: "Cas d'usage" },
+  { href: "/risk-assessments", label: "Évaluations de risque" },
   { href: "/policies", label: "Politiques" },
   { href: "/documents", label: "Documents" },
   { href: "/training", label: "Formations" },
