@@ -81,6 +81,63 @@ async function main() {
   } else {
     console.log("Questions de risque déjà présentes, seed ignoré pour cette partie.");
   }
+
+  // Formation de démonstration (organizationId: null → partagée par toutes les organisations).
+  // Il n'existe pas encore d'écran d'auteur de formation dans le MVP (cf. README) : ce seed
+  // fournit un contenu réel pour que le module Formations soit testable de bout en bout.
+  const existingCourses = await prisma.trainingCourse.count({ where: { organizationId: null } });
+  if (existingCourses === 0) {
+    await prisma.trainingCourse.create({
+      data: {
+        organizationId: null,
+        title: "Sensibilisation à l'usage responsable de l'IA",
+        description:
+          "Formation courte couvrant les bonnes pratiques de base : confidentialité des données, vérification des résultats, et signalement des incidents.",
+        language: "fr",
+        modules: {
+          create: [
+            {
+              title: "Les fondamentaux",
+              orderIndex: 1,
+              content:
+                "Les outils d'IA générative peuvent produire des erreurs (\"hallucinations\") et ne doivent jamais être utilisés avec des données confidentielles sans validation préalable. Toute sortie générée par IA destinée à un client ou à une décision importante doit être relue par un humain avant utilisation. En cas de doute sur la fiabilité d'un résultat ou d'un comportement inhabituel de l'outil, il faut le signaler au responsable IA de l'organisation plutôt que de l'ignorer.",
+              quiz: {
+                create: {
+                  title: "Quiz de validation",
+                  passingScore: 70,
+                  questions: {
+                    create: [
+                      {
+                        text: "Une sortie générée par une IA peut-elle contenir des erreurs factuelles ?",
+                        optionsJson: JSON.stringify(["Oui, toujours vérifier", "Non, jamais", "Seulement en anglais"]),
+                        correctAnswer: "Oui, toujours vérifier",
+                        orderIndex: 1,
+                      },
+                      {
+                        text: "Que faire avant d'envoyer un contenu généré par IA à un client ?",
+                        optionsJson: JSON.stringify(["L'envoyer directement", "Le faire relire par un humain", "Le traduire"]),
+                        correctAnswer: "Le faire relire par un humain",
+                        orderIndex: 2,
+                      },
+                      {
+                        text: "Que faire si un outil d'IA se comporte de façon inhabituelle ?",
+                        optionsJson: JSON.stringify(["L'ignorer", "Le signaler au responsable IA", "Redémarrer l'ordinateur"]),
+                        correctAnswer: "Le signaler au responsable IA",
+                        orderIndex: 3,
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    console.log("Seed terminé : formation de démonstration créée.");
+  } else {
+    console.log("Formations déjà présentes, seed ignoré pour cette partie.");
+  }
 }
 
 main()
